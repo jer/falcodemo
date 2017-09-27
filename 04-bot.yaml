@@ -1,0 +1,90 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: falcobot
+spec:
+  selector:
+    app: falcobot
+  ports:
+    - protocol: TCP
+      port: 8089
+      targetPort: 8089
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: falcobot
+  labels:
+    app: falcobot
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: falcobot
+    spec:
+      initContainers:
+      - name: git-init
+        image: gcr.io/google_containers/git-sync:v2.0.4
+        volumeMounts:
+        - name: code
+          mountPath: /git
+        env:
+        - name: GIT_SYNC_REPO
+          value: https://github.com/jer/falcodemo.git
+        - name: GIT_SYNC_DEST
+          value: code
+        - name: GIT_SYNC_ONE_TIME
+          value: "true"
+      containers:
+      - name: git-sync
+        image: gcr.io/google_containers/git-sync:v2.0.4
+        volumeMounts:
+        - name: code
+          mountPath: /git
+        env:
+        - name: GIT_SYNC_REPO
+          value: https://github.com/jer/falcodemo.git
+        - name: GIT_SYNC_DEST
+          value: code
+      - name: runner
+        image: jwuenschel/telegram
+        command:
+        # - sleep
+        # - "36899"
+        - bash
+        - -c
+        - >
+          ( inotifywait -r -e modify /runner/code; pkill python ) &
+          python /runner/code/botserver.py;
+          echo New code detected! Exiting.;
+          sleep 10;
+          exit 1
+        env:
+        - name: TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: bot-api-token
+              key: token
+        ports:
+        - containerPort: 8089
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "4m"
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /runner
+          name: code
+        - mountPath: /tokens
+          name: tokens
+          readOnly: true
+      volumes:
+      - name: code
+        emptyDir: {}
+      - name: tokens
+        secret:
+          secretName: bot-api-token
+      terminationGracePeriodSeconds: 4

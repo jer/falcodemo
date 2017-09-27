@@ -1,0 +1,37 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    env: prod
+    app: frontend
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: frontend
+        env: prod
+    spec:
+      containers:
+      - name: kali
+        image: kali
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            cpu: "50m"
+            memory: 512Mi

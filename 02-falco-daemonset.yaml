@@ -1,0 +1,77 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: falco
+  labels:
+    app: falco
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+  template:
+    metadata:
+      labels:
+        app: falco
+    spec:
+      initContainers:
+      containers:
+      - name: falco
+        command:
+        - sh
+        - -c
+        - >
+          /docker-entrypoint.sh;
+          apt update;
+          apt install -y netcat;
+          stdbuf -oL /usr/bin/falco
+          -c /etc/falco/falco.yaml
+          -k https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT
+          -K /var/run/secrets/kubernetes.io/serviceaccount/token -pk
+        image: sysdig/falco:0.7.0
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /etc/falco
+          name: falco-config
+        - mountPath: /host/var/run/docker.sock
+          name: var-run-docker-sock
+        - mountPath: /host/dev
+          name: dev
+        - mountPath: /host/proc
+          name: proc
+        - mountPath: /host/boot
+          name: boot
+        - mountPath: /host/lib/modules
+          name: lib-modules
+        - mountPath: /host/usr
+          name: usr
+        - mountPath: /shared
+          name: shared
+      volumes:
+      - configMap:
+          name: falco-config
+        name: falco-config
+      - hostPath:
+          path: /var/run/docker.sock
+        name: var-run-docker-sock
+      - hostPath:
+          path: /dev
+        name: dev
+      - hostPath:
+          path: /proc
+        name: proc
+      - hostPath:
+          path: /boot
+        name: boot
+      - hostPath:
+          path: /lib/modules
+        name: lib-modules
+      - hostPath:
+          path: /usr
+        name: usr
+      - name: code
+        emptyDir: {}
+      - name: shared
+        emptyDir: {}
+      terminationGracePeriodSeconds: 4
